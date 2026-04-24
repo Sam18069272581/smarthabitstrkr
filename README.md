@@ -9,6 +9,10 @@ Web-Technologien I — HSBI Sommersemester 2026
 
 SmartHabitTrkr ist eine vollständige Web-Applikation zur Verwaltung von Aufgaben und Gewohnheiten. Das System folgt einer strikten **Frontend/Backend-Trennung** mit einer RESTful HTTP-API nach dem **API-First-Prinzip**.
 
+Weitere Projektdokumentation:
+- `docs/MIGRATION_PLAN.md` – Migrationsplan FastAPI -> Flask
+- `docs/PROJECT_CONTEXT.md` – persistenter Projektkontext und Arbeitsannahmen
+
 ### Kernfunktionen
 - ✅ **CRUD-Aufgabenverwaltung** — Einmalige Aufgaben & periodische Gewohnheiten
 - 📅 **Kalenderansicht** — Dynamischer Monatskalender (Mo–So, europäisch)
@@ -69,8 +73,10 @@ SmartHabitTrkr ist eine vollständige Web-Applikation zur Verwaltung von Aufgabe
 smarthabittrkr/
 ├── backend/
 │   ├── __init__.py
+│   ├── flask_app.py     # Paralleler Flask-App-Einstiegspunkt (Migration)
 │   ├── main.py          # FastAPI App-Einstiegspunkt, CORS, Routing
 │   ├── database.py      # SQLAlchemy Engine, Session, create_tables()
+│   ├── flask_api/       # Flask Blueprints für inkrementelle Migration
 │   ├── models.py        # ORM-Modelle: Task, CheckIn (mit computed_status)
 │   ├── schemas.py       # Pydantic-Schemas für Request/Response-Validierung
 │   ├── service.py       # Business-Logik: CRUD, Check-in, Statistiken, Streak
@@ -98,10 +104,52 @@ smarthabittrkr/
 pip install -r requirements.txt
 ```
 
+Bevorzugte isolierte Umgebung für dieses Projekt:
+```bash
+..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Hinweis:
+Die Projekt-`.venv` liegt eine Ebene über dem Repo unter `D:\Projects\Smarthabittrkr\.venv`.
+
+### 1a. Code-Qualität prüfen (Ruff)
+```bash
+# Linting
+ruff check .
+
+# Automatische Korrekturen, wo sicher möglich
+ruff check . --fix
+
+# Formatierung
+ruff format .
+```
+
 ### 2. Backend starten
 ```bash
 # Aus dem smarthabittrkr/ Verzeichnis:
 uvicorn backend.main:app --reload --port 8000
+```
+
+### 2a. Parallelen Flask-Health-Check starten
+```bash
+# Startet die inkrementelle Flask-Migrationslinie parallel auf Port 8001
+flask --app backend.flask_app:app run --debug --port 8001
+```
+
+Aktuell sind in der parallelen Flask-Linie bereits diese Endpunkte migriert:
+
+- `GET /api/health`
+- `GET /api/tasks`
+- `POST /api/tasks`
+- `GET /api/tasks/{id}`
+- `PUT /api/tasks/{id}`
+
+Damit sind erste Read-only-Endpunkte bereits parallel testbar.
+
+Danach sind die migrierten Endpunkte hier erreichbar:
+```text
+http://localhost:8001/api/health
+http://localhost:8001/api/tasks
 ```
 
 ### 3. Frontend öffnen
@@ -111,6 +159,22 @@ http://localhost:8000
 ```
 
 Oder direkt `frontend/index.html` im Browser öffnen (dann API-URL im Code auf `http://localhost:8000` setzen).
+
+### 4. Docker-Start
+```bash
+docker build -t smarthabittrkr .
+docker run --rm -p 8000:8000 smarthabittrkr
+```
+
+### 5. Dev Container
+
+Eine minimale Dev-Container-Konfiguration ist vorhanden:
+
+- `Dockerfile`
+- `.dockerignore`
+- `.devcontainer/devcontainer.json`
+
+Damit kann das Projekt in einer containerisierten Entwicklungsumgebung geöffnet werden. Aktuell startet der Container noch mit dem bestehenden FastAPI-Stack. Bei der späteren Flask-Migration muss primär nur der Startbefehl angepasst werden.
 
 ---
 
@@ -131,12 +195,29 @@ pip install pytest-cov
 python -m pytest backend/tests/ --cov=backend --cov-report=term-missing
 ```
 
+## Entwicklungsstandard
+
+Python-Code wird über `Ruff` vereinheitlicht.
+
+- Konfiguration: `pyproject.toml`
+- Erste aktivierte Regelgruppen: `E`, `F`, `I`, `UP`, `B`
+- Ziel: konsistente Imports, Basis-Linting, einfache Modernisierung und weniger vermeidbare Fehler
+
+Empfohlener Ablauf vor Commits:
+
+```bash
+ruff check . --fix
+ruff format .
+python -m pytest backend/tests/ -v
+```
+
 ### Testergebnisse (aktuell)
 ```
-55 passed in 5.40s
+67 passed in 2.87s
 
-Unittests (23):     _is_overdue, _calc_progress_percentage, _calc_longest_streak, computed_status
-Integrationstests (32): Health, CRUD Tasks, CheckIn/Undo, Archive, Statistics
+Unittests (23):        _is_overdue, _calc_progress_percentage, _calc_longest_streak, computed_status
+FastAPI-Integration (32): Health, CRUD Tasks, CheckIn/Undo, Archive, Statistics
+Flask-Tests (12):      Health, Task-Liste, Archiv-Filter, Task-Details, 404, Create, Validation, Update
 ```
 
 ---

@@ -1,0 +1,23 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "[{]backend",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"

@@ -3,22 +3,27 @@ Integrationstests – HTTP-API
 Testet alle CRUD-Endpunkte über echte HTTP-Requests gegen eine Test-DB.
 Kursanforderung: Alle API-Endpunkte müssen durch Integrationstests abgedeckt sein.
 """
-import pytest
+
+import os
+import sys
+import tempfile
 from datetime import date
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from backend.main import app
 from backend.database import get_db
+from backend.main import app
 from backend.models import Base
 
 # ── Test-Datenbank: Datei-SQLite (vermeidet In-Memory Verbindungsprobleme) ────
-TEST_DB_PATH = "/tmp/test_smarthabit.db"
-TEST_DB_URL = f"sqlite:///{TEST_DB_PATH}"
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "test_smarthabit.db"
+TEST_DB_URL = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
@@ -48,6 +53,7 @@ client = TestClient(app)
 
 # ── Hilfsfunktionen ──────────────────────────────────────────
 
+
 def create_sample_task(name="Test Aufgabe", task_type="once", **kwargs) -> dict:
     payload = {"name": name, "type": task_type, **kwargs}
     r = client.post("/api/tasks", json=payload)
@@ -57,12 +63,12 @@ def create_sample_task(name="Test Aufgabe", task_type="once", **kwargs) -> dict:
 
 def create_periodic_task(name="Monatlich lesen", target=28) -> dict:
     return create_sample_task(
-        name=name, task_type="periodic",
-        period="monthly", target=target, color="#22c55e"
+        name=name, task_type="periodic", period="monthly", target=target, color="#22c55e"
     )
 
 
 # ── Health Check ─────────────────────────────────────────────
+
 
 class TestHealth:
     def test_health_endpoint(self):
@@ -72,6 +78,7 @@ class TestHealth:
 
 
 # ── POST /api/tasks ───────────────────────────────────────────
+
 
 class TestCreateTask:
     def test_create_once_task(self):
@@ -84,13 +91,16 @@ class TestCreateTask:
         assert data["status"] == "active"
 
     def test_create_periodic_task(self):
-        r = client.post("/api/tasks", json={
-            "name": "Täglich lesen",
-            "type": "periodic",
-            "period": "monthly",
-            "target": 28,
-            "color": "#22c55e",
-        })
+        r = client.post(
+            "/api/tasks",
+            json={
+                "name": "Täglich lesen",
+                "type": "periodic",
+                "period": "monthly",
+                "target": 28,
+                "color": "#22c55e",
+            },
+        )
         assert r.status_code == 201
         data = r.json()
         assert data["target"] == 28
@@ -106,14 +116,14 @@ class TestCreateTask:
         assert r.status_code == 422
 
     def test_create_task_negative_target_fails(self):
-        r = client.post("/api/tasks", json={
-            "name": "X", "type": "periodic",
-            "period": "monthly", "target": -1
-        })
+        r = client.post(
+            "/api/tasks", json={"name": "X", "type": "periodic", "period": "monthly", "target": -1}
+        )
         assert r.status_code == 422
 
 
 # ── GET /api/tasks ────────────────────────────────────────────
+
 
 class TestListTasks:
     def test_empty_list(self):
@@ -152,6 +162,7 @@ class TestListTasks:
 
 # ── GET /api/tasks/{id} ───────────────────────────────────────
 
+
 class TestGetTask:
     def test_get_existing_task(self):
         task = create_sample_task("Meine Aufgabe")
@@ -165,6 +176,7 @@ class TestGetTask:
 
 
 # ── PUT /api/tasks/{id} ───────────────────────────────────────
+
 
 class TestUpdateTask:
     def test_update_name(self):
@@ -191,6 +203,7 @@ class TestUpdateTask:
 
 # ── DELETE /api/tasks/{id} ────────────────────────────────────
 
+
 class TestDeleteTask:
     def test_delete_existing_task(self):
         task = create_sample_task()
@@ -206,11 +219,13 @@ class TestDeleteTask:
 
 # ── POST /api/tasks/{id}/checkin ─────────────────────────────
 
+
 class TestCheckIn:
     def test_checkin_increments_progress(self):
         task = create_periodic_task(target=5)
-        r = client.post(f"/api/tasks/{task['id']}/checkin",
-                        json={"checkin_date": str(date.today())})
+        r = client.post(
+            f"/api/tasks/{task['id']}/checkin", json={"checkin_date": str(date.today())}
+        )
         assert r.status_code == 200
         assert r.json()["progress"] == 1
 
@@ -224,8 +239,9 @@ class TestCheckIn:
 
     def test_checkin_completes_task_when_target_reached(self):
         task = create_periodic_task(target=1)
-        r = client.post(f"/api/tasks/{task['id']}/checkin",
-                        json={"checkin_date": str(date.today())})
+        r = client.post(
+            f"/api/tasks/{task['id']}/checkin", json={"checkin_date": str(date.today())}
+        )
         assert r.json()["status"] == "completed"
 
     def test_checkin_stores_date_in_checkins_list(self):
@@ -235,8 +251,7 @@ class TestCheckIn:
         assert today in r.json()["checkins"]
 
     def test_checkin_nonexistent_task_404(self):
-        r = client.post("/api/tasks/99999/checkin",
-                        json={"checkin_date": str(date.today())})
+        r = client.post("/api/tasks/99999/checkin", json={"checkin_date": str(date.today())})
         assert r.status_code == 404
 
     def test_undo_checkin_decrements_progress(self):
@@ -249,6 +264,7 @@ class TestCheckIn:
 
 
 # ── POST /api/tasks/{id}/archive ─────────────────────────────
+
 
 class TestArchive:
     def test_archive_task(self):
@@ -268,6 +284,7 @@ class TestArchive:
 
 # ── GET /api/statistics/monthly ──────────────────────────────
 
+
 class TestStatistics:
     def test_stats_empty_db(self):
         r = client.get("/api/statistics/monthly")
@@ -286,8 +303,7 @@ class TestStatistics:
 
     def test_stats_completed_count(self):
         task = create_periodic_task(target=1)
-        client.post(f"/api/tasks/{task['id']}/checkin",
-                    json={"checkin_date": str(date.today())})
+        client.post(f"/api/tasks/{task['id']}/checkin", json={"checkin_date": str(date.today())})
         r = client.get("/api/statistics/monthly")
         assert r.json()["completed_tasks"] == 1
 
