@@ -6,7 +6,7 @@ Dadurch sind Unittests ohne HTTP-Stack möglich.
 from datetime import date, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, func
+from sqlalchemy import extract
 
 from .models import Task, CheckIn, TaskType, TaskStatus, Period
 from .schemas import (
@@ -233,7 +233,8 @@ def _calc_longest_streak(db: Session) -> int:
     Berechnet die längste aufeinanderfolgende Check-in-Kette über alle Tasks.
     Kurs-Anforderung: Cross-month calculation.
     """
-    all_dates = db.query(func.distinct(CheckIn.checkin_date)).all()
+    # .distinct() am Column behält den Date-Typ; func.distinct() liefert unter SQLite Strings
+    all_dates = db.query(CheckIn.checkin_date.distinct()).all()
     date_set = {row[0] for row in all_dates}
 
     if not date_set:

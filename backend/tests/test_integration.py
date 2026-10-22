@@ -7,7 +7,7 @@ Kursanforderung: Alle API-Endpunkte müssen durch Integrationstests abgedeckt se
 import os
 import sys
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -306,6 +306,15 @@ class TestStatistics:
         client.post(f"/api/tasks/{task['id']}/checkin", json={"checkin_date": str(date.today())})
         r = client.get("/api/statistics/monthly")
         assert r.json()["completed_tasks"] == 1
+
+    def test_stats_streak_over_consecutive_days(self):
+        task = create_periodic_task()
+        for offset in (2, 1, 0):
+            day = str(date.today() - timedelta(days=offset))
+            client.post(f"/api/tasks/{task['id']}/checkin", json={"checkin_date": day})
+        r = client.get("/api/statistics/monthly")
+        assert r.status_code == 200
+        assert r.json()["longest_streak"] == 3
 
     def test_stats_monthly_data_has_7_months(self):
         r = client.get("/api/statistics/monthly")
