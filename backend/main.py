@@ -7,13 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from .database import create_tables
+from .database import SessionLocal, create_tables
+from .demo_data import seed_demo_data
 from .routers import tasks, statistics
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    if os.getenv("DEMO_SEED") == "1":
+        with SessionLocal() as db:
+            seed_demo_data(db)
     yield
 
 

@@ -166,6 +166,14 @@ docker build -t smarthabittrkr .
 docker run --rm -p 8000:8000 smarthabittrkr
 ```
 
+Der Container liest den Port aus der Umgebungsvariable `PORT` (Fallback `8000`) und füllt eine leere Datenbank beim Start mit Demo-Daten (`DEMO_SEED=1`, deaktivierbar mit `-e DEMO_SEED=0`). Die SQLite-Datei liegt im Container und geht beim Neustart verloren.
+
+### 4a. Online-Deployment (Render)
+1. Auf render.com mit GitHub anmelden → **New → Web Service** → dieses Repository wählen
+2. Runtime **Docker**, Instance Type **Free** → **Deploy**
+
+Jeder Push auf `main` löst automatisch ein neues Deployment aus. Der Free-Tier schläft nach ca. 15 Minuten ohne Zugriffe ein; danach werden die Demo-Daten neu angelegt.
+
 ### 5. Dev Container
 
 Eine minimale Dev-Container-Konfiguration ist vorhanden:
